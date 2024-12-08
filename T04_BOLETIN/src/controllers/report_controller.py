@@ -18,14 +18,6 @@ class ReportController:
     """
 
     def __init__(self, report_view: ReportView, report_model: ReportModel, popup_parent: Optional[QWidget] = None):
-        """
-        Inicializa el controlador, configurando la vista, el modelo y el gestor de popups.
-
-        Parámetros:
-        - report_view (ReportView): Vista para mostrar la interfaz de usuario.
-        - report_model (ReportModel): Modelo de datos para interactuar con la base de datos.
-        - popup_parent (QWidget | None): Widget padre opcional para asociar los popups a la ventana principal.
-        """
         if not report_view or not report_model:
             raise ValueError("Se requieren tanto la vista como el modelo para inicializar el controlador.")
 
@@ -33,15 +25,12 @@ class ReportController:
         self._model: ReportModel = report_model
         self._popup_parent: Optional[QWidget] = popup_parent
 
-
         # Conectar señales
         self._view.apply_filters_signal.connect(self._apply_filters)
         self._view.generate_pdf_signal.connect(self.generate_pdf)
 
-
         # Inicializar vista
         self._initialize_view()
-    # __init__ (fin)
 
     def _initialize_view(self) -> None:
         """
@@ -61,26 +50,22 @@ class ReportController:
                 _printv2(show_popup=False, parent=self._popup_parent, message="No se encontraron datos en la tabla 'tareas'.")
                 self._view._clear_chart()
 
-            # Cargar categorías
+            # Cargar categorías y filtrar solo las permitidas
             categories_data: Optional[List[Dict[str, Any]]] = self._model._fetch_data(utils_db.EnumTablasDB.CATEGORIAS.value)
             if categories_data:
-                categories: List[str] = [row["nombre_categoria"] for row in categories_data]
+                allowed_categories = ["Ofimática", "Programación", "Ocio"]
+                categories: List[str] = [row["nombre_categoria"] for row in categories_data if row["nombre_categoria"] in allowed_categories]
                 self._view._set_categories(categories)
             else:
                 _printv2(show_popup=False, parent=self._popup_parent, message="No se encontraron categorías.")
         except Exception as e:
             error_msg: str = f"Error al inicializar la vista: {e}"
             _printv2(show_popup=False, parent=self._popup_parent, message=error_msg)
-    # _initialize_view (fin)
 
     @Slot(str, str)
     def _apply_filters(self, search_text: str, category: str) -> None:
         """
         Aplica los filtros recibidos desde la vista y actualiza los datos mostrados.
-
-        Parámetros:
-        - search_text (str): Texto ingresado en la barra de búsqueda.
-        - category (str): Categoría seleccionada para filtrar.
         """
         CATEGORY_MAP = {
             1: "Ofimática",
@@ -105,7 +90,7 @@ class ReportController:
                 if (not search_text.strip() or search_text.lower() in row["nombre"].lower()) and
                 (category == "Todas" or CATEGORY_MAP.get(row["id_categoria"], "").lower() == category.lower())
             ]
-            
+
             self._view.filtered_data = filtered_data
             if not filtered_data:
                 _printv2(show_popup=False, parent=self._popup_parent, message="No se encontraron datos con los filtros aplicados.")
@@ -115,23 +100,30 @@ class ReportController:
 
             # Actualizar la tabla con los datos filtrados
             prepared_data: QStandardItemModel = self._prepare_table_data({
-                "columns": ["id_categoria","nombre", "description", "idusuario"],
+                "columns": ["id_categoria", "nombre", "description", "idusuario"],
                 "data": filtered_data,
             })
             self._view._set_model(prepared_data)
-            # Actualizar el QLabel con el resumen
-            total_elementos = len(filtered_data)
-            suma_categorias = sum(row["id_categoria"] for row in filtered_data)
-            self._view._set_number(total_elementos,suma_categorias)
-            # Actualizar el gráfico con los datos filtrados
-            chart_data = self._prepare_chart_data({
-                utils_db.EnumEjes.EJE_X.value: [row["nombre"] for row in filtered_data],
-                utils_db.EnumEjes.EJE_Y.value: {"Categoría": [int(row["id_categoria"]) for row in filtered_data] if filtered_data else []},
-            })
+
+            # Filtrar y agrupar los datos para la gráfica
+            allowed_categories = {"Ofimática": 1, "Programación": 2, "Ocio": 3}
+            chart_totals = {name: 0 for name in allowed_categories.keys()}
+
+            for row in filtered_data:
+                category_name = CATEGORY_MAP.get(row["id_categoria"], "")
+                if category_name in chart_totals:
+                    chart_totals[category_name] += 1  # Contar elementos por categoría
+
+            # Preparar datos para la gráfica
+            chart_data = {
+                utils_db.EnumEjes.EJE_X.value: list(chart_totals.keys()),  # Categorías
+                utils_db.EnumEjes.EJE_Y.value: {"Totales": list(chart_totals.values())}  # Totales
+            }
             self._view._set_chart(chart_data)
-            # Generar PDF con los datos filtrados
-            #self.generate_pdf(filtered_data)
-            
+
+            # Actualizar el resumen
+            total_elementos = sum(chart_totals.values())
+            self._view._set_number(total_elementos, 0)
 
         except Exception as e:
             error_msg: str = f"Error al aplicar filtros: {e}"
@@ -149,9 +141,7 @@ class ReportController:
 
             y_position = 700
             for row in data:
-                #pdf.drawString(50, y_position, f"Tarea: {row['nombre']}")
                 pdf.drawString(50, y_position, f"Descripción: {row['description']}")
-                #pdf.drawString(350, y_position, f"Categoría: {row['id_categoria']}")
                 y_position -= 20
                 if y_position < 50:
                     pdf.showPage()
@@ -164,39 +154,17 @@ class ReportController:
             _printv2(show_popup=True, parent=self._popup_parent, message=error_msg)
 
     def _prepare_table_data(self, model_data: Dict[str, Any]) -> QStandardItemModel:
-        """
-        Prepara los datos para ser usados en un QStandardItemModel, compatible con QTableView.
-
-        Parámetros:
-        - model_data (dict): Diccionario que contiene las columnas y los datos de la tabla.
-
-        Retorno:
-        - QStandardItemModel: Modelo de datos compatible con QTableView.
-        """
         qt_model: QStandardItemModel = QStandardItemModel()
-
-        # Configurar columnas
         columns: List[str] = model_data.get("columns", [])
         qt_model.setHorizontalHeaderLabels(columns)
 
-        # Agregar filas
         for row in model_data.get("data", []):
             items: List[QStandardItem] = [QStandardItem(str(row.get(col, ""))) for col in columns]
             qt_model.appendRow(items)
 
         return qt_model
-    # _prepare_table_data (fin)
 
     def _prepare_chart_data(self, model_data: Dict[str, Any]) -> Dict[str, Any]:
-        """
-        Prepara los datos estructurados para graficar en el CustomChartWidget.
-
-        Parámetros:
-        - model_data (dict): Diccionario que contiene los datos estructurados.
-
-        Retorno:
-        - dict: Datos en el formato esperado por CustomChartWidget.
-        """
         eje_x: List[str] = model_data.get(utils_db.EnumEjes.EJE_X.value, [])
         barritas_datos: Dict[str, List[int]] = model_data.get(utils_db.EnumEjes.EJE_Y.value, {})
 
@@ -204,5 +172,3 @@ class ReportController:
             utils_db.EnumEjes.EJE_X.value: eje_x,
             utils_db.EnumEjes.EJE_Y.value: barritas_datos
         }
-    # _prepare_chart_data (fin)
-# ReportController (fin)
