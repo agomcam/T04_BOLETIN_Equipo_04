@@ -48,11 +48,9 @@ CONNECTION_NAME = NAME_DB
 # Definimos un enumerado para los nombres de las tablas de la base de datos.
 # Esto centraliza y organiza los nombres de las tablas, reduciendo la posibilidad de errores tipográficos.
 class EnumTablasDB(Enum):
-    #ROLES = "roles"
     USUARIOS = "usuarios"
     CATEGORIAS = "categorias"
     TAREAS = "tareas"
-    #VENTAS = "ventas"
 
 class EnumDataMode(Enum):
     TABLA = "table"

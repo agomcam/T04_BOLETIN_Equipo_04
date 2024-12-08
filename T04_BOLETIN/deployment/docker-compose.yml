@@ -2,7 +2,7 @@
 services:
   db:
     image: postgres:latest  # Última versión de la imagen oficial de PostgreSQL
-    container_name: T04_TEORIA  # Nombre personalizado del contenedor
+    container_name: GRUPO_T04  # Nombre personalizado del contenedor
     environment:
       POSTGRES_DB: t04_db  # Nombre de la base de datos a crear
       POSTGRES_USER: admin  # Nombre del usuario administrador
