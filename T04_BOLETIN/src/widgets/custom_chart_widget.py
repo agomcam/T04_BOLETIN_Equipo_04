@@ -3,7 +3,7 @@ from PySide6.QtCharts import QChart, QChartView, QBarSet, QBarSeries
 from PySide6.QtCharts import QBarCategoryAxis, QValueAxis
 from PySide6.QtWidgets import QScrollArea, QWidget, QVBoxLayout, QToolTip
 from PySide6.QtCore import Qt, QPoint
-from PySide6.QtGui import QPainter
+from PySide6.QtGui import QPainter,QPixmap
 from utils.utils_db import EnumEjes
 
 
@@ -36,7 +36,6 @@ class CustomChartWidget(QScrollArea):
 
         # Configuración inicial
         self._set_empty_chart()
-    # __init__ (fin)
 
     def _set_data(self, data: Dict[str, Any]) -> None:
         """
@@ -75,7 +74,6 @@ class CustomChartWidget(QScrollArea):
 
         # Configurar los ejes
         self._configure_axes(eje_x, bar_series)
-    # _set_data (fin)
 
     def _configure_axes(self, eje_x: List[str], bar_series: QBarSeries) -> None:
         """
@@ -103,7 +101,6 @@ class CustomChartWidget(QScrollArea):
 
         # Ajustar el tamaño del gráfico para permitir scroll si es necesario
         self._chart_view.setMinimumWidth(len(eje_x) * 100)
-    # _configure_axes (fin)
 
     def _set_empty_chart(self) -> None:
         """
@@ -119,14 +116,12 @@ class CustomChartWidget(QScrollArea):
 
         self._chart.setAxisX(axis_x)
         self._chart.setAxisY(axis_y)
-    # _set_empty_chart (fin)
 
     def clear_chart(self) -> None:
         """
         Limpia el gráfico por completo.
         """
         self._set_empty_chart()
-    # clear_chart (fin)
 
     def _show_tooltip(self, status: bool, index: int, bar_set: QBarSet) -> None:
         """
@@ -144,5 +139,30 @@ class CustomChartWidget(QScrollArea):
                 self.mapToGlobal(self._chart_view.pos() + QPoint(10, 10)),
                 f"{category}: {value}"
             )
-    # _show_tooltip (fin)
-# CustomChartWidget (fin)
+
+    def save_chart_as_image(self, file_path: str, scale_factor: int = 2) -> None:
+        """
+        Guarda el gráfico como una imagen de alta calidad en la ruta especificada.
+
+        Parámetros:
+        - file_path (str): Ruta donde se guardará la imagen del gráfico.
+        - scale_factor (int): Factor de escala para mejorar la resolución de la imagen.
+        """
+        # Obtener el tamaño del gráfico
+        size = self._chart_view.size()
+
+        # Crear un pixmap escalado para mayor resolución
+        high_res_pixmap = QPixmap(size.width() * scale_factor, size.height() * scale_factor)
+
+        # Crear un painter para renderizar el gráfico en el pixmap escalado
+        painter = QPainter(high_res_pixmap)
+        painter.setRenderHint(QPainter.Antialiasing)
+
+        # Renderizar el gráfico con el factor de escala
+        self._chart_view.render(painter)
+        painter.end()
+
+        # Guardar el pixmap escalado en el archivo especificado
+        if not high_res_pixmap.save(file_path):
+            raise IOError(f"No se pudo guardar el gráfico en la ruta: {file_path}")
+
